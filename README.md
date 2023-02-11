@@ -1,3 +1,5 @@
+[Blog Instructions](https://lambdalabs.com/blog/reproduce-fast-ai-diux-imagenet18-with-titan-rtx-dawn-bench)
+
 Lambda Notes on Reproducing Training on a Local Machine
 ===
 
