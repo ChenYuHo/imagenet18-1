@@ -1,0 +1,31 @@
+name: pytorch
+
+channels:
+  - conda-forge
+  - defaults
+  - pytorch
+
+dependencies:
+  - python
+  - absl-py=0.7
+  - astor=0.7
+  - gast=0.2
+  - grpcio=1.22
+  - h5py=2.9
+  - keras-applications=1.0
+  - keras-preprocessing=1.0
+  - markdown=3.0
+  - numpy=1.16
+  - pillow=5.4
+  - protobuf=3.6.1
+  - python-dateutil=2.7.5
+  - pytz=2018.9
+  - six=1.12.0
+  - tensorboard=1.12.2
+  - tensorboardX=1.6
+  - termcolor=1.1.0
+  - pytorch=1.0
+  - torchvision=0.2.1
+  - tqdm=4.29.1
+  - Werkzeug=0.14.1
+  - cupy

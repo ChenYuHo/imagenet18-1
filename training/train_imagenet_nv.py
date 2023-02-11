@@ -14,6 +14,8 @@ import torch.distributed as dist
 import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
+import random
+import numpy as np
 
 # import models
 from fp16util import *
@@ -82,7 +84,7 @@ tb = TensorboardLogger(args.logdir, is_master=is_master)
 log = FileLogger(args.logdir, is_master=is_master, is_rank0=is_rank0)
 
 def main():
-    os.system('shutdown -c')  # cancel previous shutdown command
+    #os.system('shutdown -c')  # cancel previous shutdown command
     log.console(args)
     tb.log('sizes/world', dist_utils.env_world_size())
 
@@ -125,7 +127,7 @@ def main():
 
     log.console("Creating data loaders (this could take up to 10 minutes if volume needs to be warmed up)")
     phases = eval(args.phases)
-    dm = DataManager([copy.deepcopy(p) for p in phases if 'bs' in p])
+    dm = DataManager([copy.deepcopy(p) for p in phases if 'bs' in p], args.fp16)
     scheduler = Scheduler(optimizer, [copy.deepcopy(p) for p in phases if 'lr' in p])
 
     start_time = datetime.now() # Loading start to after everything is loaded
@@ -147,11 +149,11 @@ def main():
 
         is_best = top5 > best_top5
         best_top5 = max(top5, best_top5)
-        if args.local_rank == 0:
-            if is_best: save_checkpoint(epoch, model, best_top5, optimizer, is_best=True, filename='model_best.pth.tar')
-            #phase = dm.get_phase(epoch)
-            #if phase: save_checkpoint(epoch, model, best_top5, optimizer, filename=f'sz{phase["bs"]}_checkpoint.path.tar')
-            save_checkpoint(epoch, model, best_top5, optimizer, filename=f'epoch{epoch}_checkpoint.tar')
+        #if args.local_rank == 0:
+        #    if is_best: save_checkpoint(epoch, model, best_top5, optimizer, is_best=True, filename='model_best.pth.tar')
+        #    #phase = dm.get_phase(epoch)
+        #    #if phase: save_checkpoint(epoch, model, best_top5, optimizer, filename=f'sz{phase["bs"]}_checkpoint.path.tar')
+        #    save_checkpoint(epoch, model, best_top5, optimizer, filename=f'epoch{epoch}_checkpoint.tar')
 
 
 def train(trn_loader, model, criterion, optimizer, scheduler, epoch):
@@ -290,7 +292,8 @@ def distributed_predict(input, target, model, criterion):
 
 
 class DataManager():
-    def __init__(self, phases):
+    def __init__(self, phases, fp16):
+        self.fp16 = fp16
         self.phases = self.preload_phase_data(phases)
     def set_epoch(self, epoch):
         cur_phase = self.get_phase(epoch)
@@ -337,7 +340,7 @@ class DataManager():
         if sz == 128: val_bs = max(bs, 512)
         elif sz == 224: val_bs = max(bs, 256)
         else: val_bs = max(bs, 128)
-        return dataloader.get_loaders(trndir, valdir, bs=bs, val_bs=val_bs, sz=sz, workers=args.workers, distributed=args.distributed, **kwargs)
+        return dataloader.get_loaders(trndir, valdir, bs=bs, val_bs=val_bs, fp16=self.fp16, sz=sz, workers=args.workers, distributed=args.distributed, **kwargs)
 
 # ### Learning rate scheduler
 class Scheduler():
@@ -432,18 +435,24 @@ def listify(p=None, q=None):
     return p
 
 if __name__ == '__main__':
+    seed = int(os.environ.get('SEED', 0))
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    torch.manual_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=UserWarning)
             main()
-        if not args.skip_auto_shutdown: os.system(f'sudo shutdown -h -P +{args.auto_shutdown_success_delay_mins}')
+        #if not args.skip_auto_shutdown: os.system(f'sudo shutdown -h -P +{args.auto_shutdown_success_delay_mins}')
     except Exception as e:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         import traceback
         traceback.print_tb(exc_traceback, file=sys.stdout)
         log.event(e)
         # in case of exception, wait 2 hours before shutting down
-        if not args.skip_auto_shutdown: os.system(f'sudo shutdown -h -P +{args.auto_shutdown_failure_delay_mins}')
+        #if not args.skip_auto_shutdown: os.system(f'sudo shutdown -h -P +{args.auto_shutdown_failure_delay_mins}')
     tb.close()
 
 
